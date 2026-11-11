@@ -85,11 +85,11 @@ class SplitServiceTest {
 
     @Test
     void partesPersonalizadas() {
-        BillSplit split = splits.get(splits.create(new CreateSplitRequest(ana.getId(), "Mercado", 90_000, null, null,
+        BillSplit split = splits.get(splits.create(new CreateSplitRequest(ana.getId(), "Mercado", 90_000L, null, null,
                 List.of(new ShareInput(beto.getId(), 50_000L), new ShareInput(caro.getId(), 25_000L)))).getId());
 
         assertThat(split.getCreatorShare()).isEqualTo(15_000);
-        assertThatThrownBy(() -> splits.create(new CreateSplitRequest(ana.getId(), "Mal", 10_000, null, null,
+        assertThatThrownBy(() -> splits.create(new CreateSplitRequest(ana.getId(), "Mal", 10_000L, null, null,
                 List.of(new ShareInput(beto.getId(), 8_000L), new ShareInput(caro.getId(), 8_000L)))))
                 .isInstanceOf(BusinessException.class).hasMessageContaining("más que el total");
     }
@@ -129,7 +129,7 @@ class SplitServiceTest {
     @Test
     void sinSaldoLaParteSiguePendienteYNoSeMueveNada() {
         Account dani = accountService.create("Dani"); // sin saldo
-        BillSplit split = splits.create(new CreateSplitRequest(ana.getId(), "Pizza", 30_000,
+        BillSplit split = splits.create(new CreateSplitRequest(ana.getId(), "Pizza", 30_000L,
                 List.of(dani.getId()), true, null));
         Long share = shareOf(split, dani);
 
@@ -158,13 +158,13 @@ class SplitServiceTest {
 
     @Test
     void validaciones() {
-        assertThatThrownBy(() -> splits.create(new CreateSplitRequest(ana.getId(), "X", 10_000,
+        assertThatThrownBy(() -> splits.create(new CreateSplitRequest(ana.getId(), "X", 10_000L,
                 List.of(ana.getId()), true, null))).isInstanceOf(BusinessException.class);
-        assertThatThrownBy(() -> splits.create(new CreateSplitRequest(ana.getId(), "X", 10_000,
+        assertThatThrownBy(() -> splits.create(new CreateSplitRequest(ana.getId(), "X", 10_000L,
                 List.of(beto.getId(), beto.getId()), true, null))).isInstanceOf(BusinessException.class);
-        assertThatThrownBy(() -> splits.create(new CreateSplitRequest(ana.getId(), "X", 2,
+        assertThatThrownBy(() -> splits.create(new CreateSplitRequest(ana.getId(), "X", 2L,
                 List.of(beto.getId(), caro.getId()), true, null))).isInstanceOf(BusinessException.class);
-        assertThatThrownBy(() -> splits.create(new CreateSplitRequest(ana.getId(), "X", 10_000,
+        assertThatThrownBy(() -> splits.create(new CreateSplitRequest(ana.getId(), "X", 10_000L,
                 List.of(), true, null))).isInstanceOf(BusinessException.class);
     }
 
