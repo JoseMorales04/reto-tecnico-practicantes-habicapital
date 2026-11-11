@@ -1,0 +1,147 @@
+<a routerLink="/" class="back">← Todas las cuentas</a>
+
+@if (account(); as acc) {
+  <section class="card hero">
+    <div>
+      <small class="muted">Cuenta #{{ acc.id }}</small>
+      <h1>{{ acc.name }}</h1>
+    </div>
+    <div class="balance">
+      <small class="muted">Saldo disponible</small>
+      <strong>{{ acc.balance | cop }}</strong>
+    </div>
+  </section>
+}
+
+@if (message(); as m) {
+  <p class="banner" [class.ok]="m.ok" [class.error]="!m.ok">{{ m.text }}</p>
+}
+
+@if (pending().length > 0) {
+  <section class="card owe">
+    <h2>Te están cobrando</h2>
+    <ul class="list">
+      @for (p of pending(); track p.shareId) {
+        <li class="share">
+          <div>
+            <strong>{{ p.amount | cop }}</strong> para {{ p.creditorName }}
+            <small class="muted">por «{{ p.description }}»</small>
+          </div>
+          <div class="actions">
+            <button (click)="pay(p)" [disabled]="busy()">Pagar</button>
+            <button class="ghost" (click)="decline(p)" [disabled]="busy()">Rechazar</button>
+          </div>
+        </li>
+      }
+    </ul>
+  </section>
+}
+
+<div class="grid">
+  <section class="card">
+    <h2>Cargar saldo</h2>
+    <p class="muted small">Simulado: en la vida real vendría de una pasarela de pagos.</p>
+    <form [formGroup]="depositForm" (ngSubmit)="deposit()" class="stack">
+      <label>Monto (COP)<input formControlName="amount" inputmode="numeric" placeholder="50000" /></label>
+      <label>Descripción<input formControlName="description" placeholder="Opcional" /></label>
+      <button type="submit" [disabled]="depositForm.invalid || busy()">Cargar</button>
+    </form>
+  </section>
+
+  <section class="card">
+    <h2>Transferir</h2>
+    <form [formGroup]="transferForm" (ngSubmit)="transfer()" class="stack">
+      <label>Para
+        <select formControlName="toAccountId">
+          <option value="" disabled>Elige una cuenta</option>
+          @for (o of others(); track o.id) { <option [value]="o.id">#{{ o.id }} · {{ o.name }}</option> }
+        </select>
+      </label>
+      <label>Monto (COP)<input formControlName="amount" inputmode="numeric" placeholder="20000" /></label>
+      <label>¿Para qué es?<input formControlName="description" placeholder="Arriendo de noviembre" /></label>
+      <button type="submit" [disabled]="transferForm.invalid || busy()">Enviar</button>
+    </form>
+  </section>
+</div>
+
+<section class="card">
+  <h2>Hacer una vaca: dividir una cuenta</h2>
+  <p class="muted small">Pagaste tú y quieres cobrarle su parte a cada uno. A cada participante le aparece lo que debe.</p>
+  <form [formGroup]="splitForm" (ngSubmit)="createSplit()" class="stack">
+    <div class="row">
+      <label class="grow">¿Qué fue?<input formControlName="description" placeholder="Cena de cumpleaños" /></label>
+      <label>Total (COP)<input formControlName="totalAmount" inputmode="numeric" placeholder="120000" /></label>
+    </div>
+
+    <div class="segmented">
+      <label><input type="radio" formControlName="mode" value="equal" /> Partes iguales</label>
+      <label><input type="radio" formControlName="mode" value="custom" /> Cada uno lo suyo</label>
+    </div>
+
+    @if (splitForm.controls.mode.value === 'equal') {
+      <label class="check"><input type="checkbox" formControlName="includeCreator" /> Yo también consumí (pongo mi parte)</label>
+      <div class="chips" formArrayName="participants">
+        @for (o of others(); track o.id; let i = $index) {
+          <label class="chip"><input type="checkbox" [formControlName]="i" /> {{ o.name }}</label>
+        }
+      </div>
+      @if (equalPreview()) { <p class="hint">{{ equalPreview() }}</p> }
+    } @else {
+      <div class="stack" formArrayName="customAmounts">
+        @for (o of others(); track o.id; let i = $index) {
+          <label class="inline">{{ o.name }}<input [formControlName]="i" inputmode="numeric" placeholder="0" /></label>
+        }
+        <p class="hint">Lo que no cubran las partes lo pones tú.</p>
+      </div>
+    }
+    <button type="submit" [disabled]="splitForm.invalid || busy()">Cobrar</button>
+  </form>
+
+  @if (splits().length > 0) {
+    <h3>Tus cobros</h3>
+    <ul class="list">
+      @for (s of splits(); track s.id) {
+        <li class="split">
+          <div class="split-head">
+            <strong>{{ s.description }}</strong>
+            <span class="pill" [class.done]="s.status === 'COMPLETED'">{{ s.status === 'COMPLETED' ? 'Cerrado' : 'Abierto' }}</span>
+          </div>
+          <small class="muted">Total {{ s.totalAmount | cop }} · recogido {{ s.collected | cop }} · pendiente {{ s.pending | cop }} · tu parte {{ s.creatorShare | cop }}</small>
+          <div class="chips">
+            @for (sh of s.shares; track sh.id) {
+              <span class="chip" [class.paid]="sh.status === 'PAID'" [class.declined]="sh.status === 'DECLINED'">
+                {{ sh.debtorName }} · {{ sh.amount | cop }} · {{ sh.status === 'PAID' ? 'pagó' : sh.status === 'DECLINED' ? 'rechazó' : 'pendiente' }}
+              </span>
+            }
+          </div>
+        </li>
+      }
+    </ul>
+  }
+</section>
+
+<section class="card">
+  <h2>Historial</h2>
+  @if (movements().length === 0) {
+    <p class="muted">Sin movimientos todavía.</p>
+  } @else {
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Fecha</th><th>Movimiento</th><th>Detalle</th><th class="num">Monto</th><th class="num">Saldo</th></tr></thead>
+        <tbody>
+          @for (m of movements(); track m.id) {
+            <tr>
+              <td>{{ m.createdAt | date: 'dd/MM HH:mm' }}</td>
+              <td>{{ movementLabel(m) }}</td>
+              <td class="muted">{{ m.description || '—' }}</td>
+              <td class="num" [class.in]="m.type !== 'TRANSFER_OUT'" [class.out]="m.type === 'TRANSFER_OUT'">
+                {{ m.type === 'TRANSFER_OUT' ? '−' : '+' }}{{ m.amount | cop }}
+              </td>
+              <td class="num">{{ m.balanceAfter | cop }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</section>
