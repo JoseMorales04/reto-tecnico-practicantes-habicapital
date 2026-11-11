@@ -4,7 +4,7 @@
 
 Un sistema para que un grupo de personas se mueva plata sin pasar por el banco, con una regla que no se negocia: **no puede perder un peso**.
 
-Además del núcleo (crear cuenta, cargar saldo, transferir, consultar saldo e historial), construí **la vaca**: quien pagó la cena divide la cuenta, y a cada participante le aparece cuánto debe, a quién y por qué. Paga con un clic y la cuenta se cierra sola cuando nadie debe nada.
+Además del núcleo (crear cuenta, cargar saldo, transferir, consultar saldo e historial), construí **la vaca**: quien pagó la cena divide la cuenta, y a cada participante le aparece cuánto debe, a quién y por qué. Paga con un clic y la cuenta se cierra sola cuando nadie debe nada. Y si en un grupo hay varias vacas cruzadas, **"¿Quién le paga a quién?"** calcula un plan con pocas transferencias para quedar a paz y salvo.
 
 - **Backend:** Java 17, Spring Boot 3.3, Spring Data JPA, H2
 - **Frontend:** Angular 18 (componentes standalone, signals, formularios reactivos)
@@ -17,7 +17,7 @@ Requisitos: Java 17 o superior y Node 18 o superior.
 ```bash
 # Backend (http://localhost:8080, documentación en /swagger-ui.html)
 cd backend
-./mvnw test             # 22 pruebas, incluidas las de concurrencia
+./mvnw test             # 26 pruebas, incluidas las de concurrencia
 ./mvnw spring-boot:run  # en PowerShell: .\mvnw "spring-boot:run"
 
 # Frontend (http://localhost:4200)
@@ -27,6 +27,154 @@ npm start
 ```
 
 La auditoría está en `GET /api/audit` y también se ve en la pantalla principal.
+
+## Diseño
+
+Lo documenté con UML y un modelo entidad-relación, como aprendí en Diseño y Programación Orientada a Objetos y en Fundamentos de Bases de Datos. GitHub dibuja estos diagramas automáticamente.
+
+### Capas y clases principales
+
+```mermaid
+classDiagram
+    direction LR
+    class LedgerController
+    class SplitController
+    class SettlementController
+    class LedgerService {
+        +deposit(accountId, amount, description, key) Operation
+        +transfer(fromId, toId, amount, description, key) Operation
+        +history(accountId) List~Movement~
+    }
+    class SplitService {
+        +create(request) BillSplit
+        +payShare(shareId, key) SplitShare
+        +declineShare(shareId) SplitShare
+    }
+    class SettlementService {
+        +plan(accountIds) Plan
+    }
+    class AuditService {
+        +run() AuditReport
+    }
+    class Account {
+        -Long id
+        -String name
+        -long balance
+        +credit(amount)
+        +debit(amount)
+    }
+    class Operation {
+        -String idempotencyKey
+        -OperationType type
+        -long amount
+    }
+    class Movement {
+        -MovementType type
+        -long amount
+        -long balanceAfter
+    }
+    class BillSplit {
+        -long totalAmount
+        -long creatorShare
+        -SplitStatus status
+    }
+    class SplitShare {
+        -long amount
+        -ShareStatus status
+        +markPaid(operationId)
+        +decline()
+    }
+    LedgerController --> LedgerService
+    SplitController --> SplitService
+    SettlementController --> SettlementService
+    SplitService --> LedgerService : pagar una parte es una transferencia
+    LedgerService --> Account : bloquea y modifica
+    LedgerService --> Operation : registra
+    LedgerService --> Movement : escribe historial
+    BillSplit "1" *-- "1..*" SplitShare
+    AuditService ..> Account
+    AuditService ..> Movement
+```
+
+La regla de diseño más importante: **solo `LedgerService` cambia saldos.** La vaca no mueve plata por su cuenta; llama a `transfer`, así que hereda todas sus protecciones.
+
+### Modelo de datos
+
+```mermaid
+erDiagram
+    ACCOUNT ||--o{ MOVEMENT : "tiene historial"
+    OPERATION ||--|{ MOVEMENT : "genera 1 o 2"
+    ACCOUNT ||--o{ BILL_SPLIT : "cobra"
+    BILL_SPLIT ||--|{ SPLIT_SHARE : "se divide en"
+    ACCOUNT ||--o{ SPLIT_SHARE : "debe"
+    OPERATION |o--o| SPLIT_SHARE : "paga"
+    ACCOUNT {
+        bigint id PK
+        varchar name
+        bigint balance "CHECK balance >= 0"
+        bigint version
+    }
+    OPERATION {
+        bigint id PK
+        varchar idempotency_key UK
+        varchar request_fingerprint
+        varchar type "DEPOSIT o TRANSFER"
+        bigint from_account_id
+        bigint to_account_id
+        bigint amount
+    }
+    MOVEMENT {
+        bigint id PK
+        bigint account_id "indexado"
+        bigint operation_id
+        varchar type "DEPOSIT, TRANSFER_IN, TRANSFER_OUT"
+        bigint amount
+        bigint balance_after
+    }
+    BILL_SPLIT {
+        bigint id PK
+        bigint creator_account_id
+        bigint total_amount
+        bigint creator_share
+        varchar status
+    }
+    SPLIT_SHARE {
+        bigint id PK
+        bigint split_id FK
+        bigint debtor_account_id
+        bigint amount
+        varchar status
+        bigint operation_id
+    }
+```
+
+### Qué pasa en una transferencia
+
+```mermaid
+sequenceDiagram
+    participant F as Frontend
+    participant C as LedgerController
+    participant S as LedgerService
+    participant DB as Base de datos
+    F->>C: POST /api/transfers (Idempotency-Key)
+    C->>S: transfer(...)
+    S->>DB: ¿ya existe esa llave?
+    alt ya existe con los mismos datos
+        DB-->>F: devuelve la operación anterior, no cobra de nuevo
+    else es nueva
+        S->>DB: INSERT operación (llave única)
+        S->>DB: SELECT ... FOR UPDATE cuenta de id menor
+        S->>DB: SELECT ... FOR UPDATE cuenta de id mayor
+        S->>S: debit origen / credit destino
+        S->>DB: INSERT 2 movimientos
+        S->>DB: COMMIT (todo o nada)
+        DB-->>F: 200 con la operación
+    end
+```
+
+### "¿Quién le paga a quién?"
+
+Calculo el saldo neto de cada persona con las partes pendientes del grupo y aplico un algoritmo voraz con dos colas de prioridad (montículos), como las de Estructuras de Datos: quien más debe le paga a quien más le deben, por el menor de los dos montos. Cada paso deja al menos a una persona en cero, así que el plan tiene como máximo *n − 1* transferencias. Encontrar el mínimo exacto es NP-difícil, y por eso uso esta aproximación práctica. Hoy el plan es una sugerencia: los pagos se siguen haciendo parte por parte.
 
 ---
 
@@ -54,6 +202,7 @@ La auditoría está en `GET /api/audit` y también se ve en la pantalla principa
 | Montos inválidos o absurdos | Mayor que cero y tope de $10.000.000 por operación | `montosInvalidosSonRechazados` |
 | Desbordamiento numérico | `Math.addExact` lanza un error en vez de dar un saldo negativo | — |
 | Dividir 100.000 entre 3 pierde o crea pesos | Partes enteras más un chequeo explícito de que la suma es exactamente el total; el peso sobrante lo asume quien cobra | `dividirEnPartesIgualesNoPierdeNiCreaPesos` |
+| El plan de liquidación descuadra los saldos | Verifico que los saldos netos sumen cero antes de calcular, y una prueba confirma que al aplicar el plan todos quedan exactamente en cero | `elPlanDejaATodosExactamenteEnCero` |
 | Pagar dos veces la misma parte de la vaca | Bloqueo de la parte; el segundo pago la encuentra pagada | `pagosSimultaneosDeLaMismaParteSoloCobranUnaVez` |
 | Plata que aparece o desaparece por un error que no anticipé | Auditoría: suma de saldos = suma de cargas; saldo de cada cuenta = suma de su historial; cada parte pagada tiene su transferencia real | `GET /api/audit`, revisada al final de casi todas las pruebas |
 
@@ -66,6 +215,7 @@ La prueba más fuerte es `milTransferenciasSimultaneasConservanLaPlataTotal`: 20
 - **Autenticación y autorización:** hoy cualquiera puede operar sobre cualquier cuenta. Es lo primero que agregaría, pero el reto se centra en no perder plata y preferí invertir el tiempo ahí.
 - **Pasarela de pagos real:** la carga de saldo es simulada, como pide el reto.
 - **Reversos y devoluciones:** se harían como una operación compensatoria nueva, nunca editando el historial.
+- **Ejecutar el plan de liquidación de una vez:** hoy es una sugerencia. Ejecutarlo requiere pagar varias partes con menos transferencias y ajustar la auditoría, que hoy exige una transferencia por cada parte pagada.
 - **Paginación del historial**, notificaciones y recordatorios de cobro.
 
 ## 04. Qué haría distinto con más tiempo
@@ -101,6 +251,7 @@ La prueba más fuerte es `milTransferenciasSimultaneasConservanLaPlataTotal`: 20
 - Usé Claude como compañero. Yo decidí el stack, la funcionalidad extra y cómo trabajar (por etapas, revisando cada una). Claude escribía cada etapa y me la explicaba; yo corría las pruebas en mi computador, leía el código y preguntaba lo que no entendía.
 - Claude no podía compilar Java en su entorno, así que la verificación real fue mía: corrí `mvn test` y le devolví los resultados.
 - **Un error de la IA:** en el frontend, el formulario de crear cuenta usaba `(ngSubmit)` sin `[formGroup]`. Con formularios reactivos, ese evento no se dispara sin la directiva, así que el botón no creaba nada. Se detectó al probar la pantalla con un navegador automatizado: las cuentas nunca aparecían.
+- **Otro error, que detectó el compilador en mi computador:** en las pruebas de la vaca, la IA pasó números como `90_000` donde el constructor espera un `Long`. Java no convierte `int` a `Long` automáticamente, así que no compiló. Lo corregimos agregando `L` (`90_000L`).
 - ✍️ *Agrega tus propios momentos: algo que preguntaste, algo que decidiste distinto a lo que sugirió la IA, algo que comprobaste tú.*
 
 ## 08. Qué aprendí

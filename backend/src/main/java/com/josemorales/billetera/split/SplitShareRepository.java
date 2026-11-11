@@ -18,6 +18,15 @@ public interface SplitShareRepository extends JpaRepository<SplitShare, Long> {
 
     List<SplitShare> findByDebtorAccountIdAndStatusOrderByIdDesc(Long debtorAccountId, ShareStatus status);
 
+    /** Partes pendientes donde tanto el deudor como quien cobra pertenecen al grupo. */
+    @Query("""
+            select s from SplitShare s join fetch s.split sp
+            where s.status = com.josemorales.billetera.split.ShareStatus.PENDING
+              and s.debtorAccountId in :accountIds
+              and sp.creatorAccountId in :accountIds
+            """)
+    List<SplitShare> findPendingWithinGroup(@Param("accountIds") java.util.Collection<Long> accountIds);
+
     /** Partes marcadas como pagadas cuya transferencia no existe o no coincide en monto o cuentas. */
     @Query("""
             select count(s) from SplitShare s

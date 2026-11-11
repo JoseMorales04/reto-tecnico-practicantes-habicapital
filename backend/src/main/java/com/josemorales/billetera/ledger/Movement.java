@@ -9,7 +9,8 @@ import java.time.Instant;
  * el saldo de cada cuenta debe ser igual a la suma de sus movimientos.
  */
 @Entity
-@Table(name = "movement")
+// Índice por cuenta: el historial y la auditoría siempre filtran por accountId.
+@Table(name = "movement", indexes = @Index(name = "idx_movement_account", columnList = "accountId"))
 public class Movement {
 
     @Id

@@ -66,3 +66,9 @@ export interface CreateSplitRequest {
   includeCreator?: boolean;
   shares?: { accountId: number; amount: number }[];
 }
+
+export interface SettlementPlan {
+  netBalances: Record<string, number>;
+  pendingShares: number;
+  payments: { fromAccountId: number; toAccountId: number; amount: number }[];
+}

@@ -67,3 +67,5 @@ th { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: v
 .out { color: var(--warn); }
 .container > *, .grid > * { min-width: 0; }
 @media (max-width: 520px) { label.inline { grid-template-columns: 1fr; } .balance { text-align: left; } }
+.settle { display: flex; justify-content: space-between; padding: 10px 14px; border: 1px solid var(--line); border-radius: 10px; }
+.row + .hint { margin-top: 12px; }

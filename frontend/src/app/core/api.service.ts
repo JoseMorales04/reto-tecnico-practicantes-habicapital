@@ -2,7 +2,7 @@ import { HttpClient, HttpErrorResponse, HttpHeaders } from '@angular/common/http
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import {
-  Account, AuditReport, CreateSplitRequest, Movement, PendingShare, Split
+  Account, AuditReport, CreateSplitRequest, Movement, PendingShare, SettlementPlan, Split
 } from './models';
 
 const API = 'http://localhost:8080/api';
@@ -42,6 +42,10 @@ export class ApiService {
   }
 
   audit(): Observable<AuditReport> { return this.http.get<AuditReport>(`${API}/audit`); }
+
+  settlementPlan(accountIds: number[]): Observable<SettlementPlan> {
+    return this.http.get<SettlementPlan>(`${API}/settlements/plan`, { params: { accountIds: accountIds.join(',') } });
+  }
 }
 
 /** Mensaje legible a partir del error de la API (ProblemDetail) o de red. */
