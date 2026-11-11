@@ -33,48 +33,79 @@ public class SplitService {
         this.ledger = ledger;
     }
 
+    /** Resultado de repartir: lo que debe cada deudor, quiénes llevan el peso extra y si el creador lleva uno. */
+    record Division(Map<Long, Long> debts, Set<Long> debtorsWithExtra, boolean creatorHasExtra) {}
+
     @Transactional
     public BillSplit create(CreateSplitRequest req) {
         long total = req.totalAmount();
         Money.requireValidAmount(total);
         requireAccount(req.creatorAccountId());
 
-        Map<Long, Long> debts = (req.shares() != null && !req.shares().isEmpty())
-                ? customDebts(req.creatorAccountId(), total, req.shares())
+        Division division = (req.shares() != null && !req.shares().isEmpty())
+                ? new Division(customDebts(req.creatorAccountId(), total, req.shares()), Set.of(), false)
                 : equalDebts(req.creatorAccountId(), total, req.participantIds(),
                         req.includeCreator() == null || req.includeCreator());
 
-        long debtsSum = debts.values().stream().mapToLong(Long::longValue).sum();
+        long debtsSum = division.debts().values().stream().mapToLong(Long::longValue).sum();
         long creatorShare = total - debtsSum;
         // Chequeo de seguridad: dividir nunca puede crear ni perder un peso.
         if (creatorShare < 0 || debtsSum + creatorShare != total) {
             throw new IllegalStateException("La división no cuadra con el total");
         }
 
-        BillSplit split = new BillSplit(req.creatorAccountId(), req.description().trim(), total, creatorShare);
-        debts.forEach(split::addShare);
+        BillSplit split = new BillSplit(req.creatorAccountId(), req.description().trim(), total, creatorShare,
+                division.creatorHasExtra() ? 1 : 0);
+        division.debts().forEach((debtor, amount) ->
+                split.addShare(debtor, amount, division.debtorsWithExtra().contains(debtor) ? 1 : 0));
         return splits.save(split);
     }
 
     /**
-     * Partes iguales en pesos enteros. Si no da exacto, sobran unos pesos (menos que el número de personas):
-     * si el creador participa, los asume él; si no, se reparten de a un peso entre los primeros deudores.
-     * Así la suma siempre es exactamente el total.
+     * Partes iguales en pesos enteros. Si no da exacto, sobran unos pesos (siempre menos que el número de personas).
+     * Esos pesos se reparten por turnos: los lleva quien menos pesos extra haya puesto antes en otras divisiones.
+     * En un empate va primero el creador (si participa) y luego el orden de la lista.
+     * Así, si el mismo grupo divide varias veces, el peso de más rota y no lo paga siempre la misma persona.
+     * La suma siempre es exactamente el total.
      */
-    Map<Long, Long> equalDebts(Long creatorId, long total, List<Long> participantIds, boolean includeCreator) {
+    Division equalDebts(Long creatorId, long total, List<Long> participantIds, boolean includeCreator) {
         List<Long> debtors = validateParticipants(creatorId, participantIds);
-        int people = debtors.size() + (includeCreator ? 1 : 0);
-        long base = total / people;
-        long remainder = total % people;
+        List<Long> people = new ArrayList<>();
+        if (includeCreator) people.add(creatorId);
+        people.addAll(debtors);
+
+        long base = total / people.size();
+        int remainder = (int) (total % people.size());
         if (base == 0) {
-            throw BusinessException.badRequest("AMOUNT_TOO_SMALL", "El total es muy pequeño para dividirlo entre " + people);
+            throw BusinessException.badRequest("AMOUNT_TOO_SMALL",
+                    "El total es muy pequeño para dividirlo entre " + people.size());
         }
+
+        Map<Long, Long> previousExtras = roundingExtrasSoFar(people);
+        List<Long> byTurn = new ArrayList<>(people); // orden estable: creador primero, luego la lista
+        byTurn.sort(Comparator.comparingLong(id -> previousExtras.getOrDefault(id, 0L)));
+        Set<Long> takeExtra = new HashSet<>(byTurn.subList(0, remainder));
+
         Map<Long, Long> debts = new LinkedHashMap<>();
-        for (int i = 0; i < debtors.size(); i++) {
-            long extra = (!includeCreator && i < remainder) ? 1 : 0;
-            debts.put(debtors.get(i), base + extra);
+        Set<Long> debtorsWithExtra = new HashSet<>();
+        for (Long debtor : debtors) {
+            boolean extra = takeExtra.contains(debtor);
+            debts.put(debtor, base + (extra ? 1 : 0));
+            if (extra) debtorsWithExtra.add(debtor);
         }
-        return debts;
+        return new Division(debts, debtorsWithExtra, includeCreator && takeExtra.contains(creatorId));
+    }
+
+    /** Pesos extra por redondeo que cada persona ya puso, como deudora o como creadora. */
+    private Map<Long, Long> roundingExtrasSoFar(List<Long> people) {
+        Map<Long, Long> extras = new HashMap<>();
+        for (Object[] row : shares.sumRoundingExtrasAsDebtor(people)) {
+            extras.merge((Long) row[0], ((Number) row[1]).longValue(), Long::sum);
+        }
+        for (Object[] row : splits.sumRoundingExtrasAsCreator(people)) {
+            extras.merge((Long) row[0], ((Number) row[1]).longValue(), Long::sum);
+        }
+        return extras;
     }
 
     private Map<Long, Long> customDebts(Long creatorId, long total, List<ShareInput> inputs) {

@@ -84,6 +84,24 @@ class SplitServiceTest {
     }
 
     @Test
+    void elPesoDeMasRotaEntreLasMismasPersonas() {
+        // Cuatro cenas de 100.000 entre los mismos tres: el peso que sobra rota Ana -> Beto -> Caro -> Ana.
+        List<Long> quienPusoElPeso = new java.util.ArrayList<>();
+        for (int i = 0; i < 4; i++) {
+            BillSplit split = splits.get(equalSplit(100_000, true).getId());
+            long sum = split.getShares().stream().mapToLong(SplitShare::getAmount).sum() + split.getCreatorShare();
+            assertThat(sum).isEqualTo(100_000);
+
+            if (split.getCreatorRoundingExtra() == 1) {
+                quienPusoElPeso.add(ana.getId());
+            }
+            split.getShares().stream().filter(sh -> sh.getRoundingExtra() == 1)
+                    .forEach(sh -> quienPusoElPeso.add(sh.getDebtorAccountId()));
+        }
+        assertThat(quienPusoElPeso).containsExactly(ana.getId(), beto.getId(), caro.getId(), ana.getId());
+    }
+
+    @Test
     void partesPersonalizadas() {
         BillSplit split = splits.get(splits.create(new CreateSplitRequest(ana.getId(), "Mercado", 90_000L, null, null,
                 List.of(new ShareInput(beto.getId(), 50_000L), new ShareInput(caro.getId(), 25_000L)))).getId());

@@ -21,6 +21,7 @@ export interface Share {
   debtorAccountId: number;
   debtorName: string;
   amount: number;
+  roundingExtra: number;
   status: 'PENDING' | 'PAID' | 'DECLINED';
   operationId: number | null;
   resolvedAt: string | null;
@@ -33,6 +34,7 @@ export interface Split {
   description: string;
   totalAmount: number;
   creatorShare: number;
+  creatorRoundingExtra: number;
   collected: number;
   pending: number;
   status: 'OPEN' | 'COMPLETED';

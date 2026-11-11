@@ -28,21 +28,21 @@ public final class SplitDtos {
             Boolean includeCreator,
             List<@Valid ShareInput> shares) {}
 
-    public record ShareResponse(Long id, Long debtorAccountId, String debtorName, long amount, String status,
-                                Long operationId, Instant resolvedAt) {}
+    public record ShareResponse(Long id, Long debtorAccountId, String debtorName, long amount, long roundingExtra,
+                                String status, Long operationId, Instant resolvedAt) {}
 
     public record SplitResponse(Long id, Long creatorAccountId, String creatorName, String description,
-                                long totalAmount, long creatorShare, long collected, long pending, String status,
-                                Instant createdAt, List<ShareResponse> shares) {
+                                long totalAmount, long creatorShare, long creatorRoundingExtra, long collected,
+                                long pending, String status, Instant createdAt, List<ShareResponse> shares) {
 
         static SplitResponse from(BillSplit s, Map<Long, String> names) {
             List<ShareResponse> shares = s.getShares().stream()
                     .map(sh -> new ShareResponse(sh.getId(), sh.getDebtorAccountId(),
-                            names.get(sh.getDebtorAccountId()), sh.getAmount(), sh.getStatus().name(),
+                            names.get(sh.getDebtorAccountId()), sh.getAmount(), sh.getRoundingExtra(), sh.getStatus().name(),
                             sh.getOperationId(), sh.getResolvedAt()))
                     .toList();
             return new SplitResponse(s.getId(), s.getCreatorAccountId(), names.get(s.getCreatorAccountId()),
-                    s.getDescription(), s.getTotalAmount(), s.getCreatorShare(), s.collected(), s.pending(),
+                    s.getDescription(), s.getTotalAmount(), s.getCreatorShare(), s.getCreatorRoundingExtra(), s.collected(), s.pending(),
                     s.getStatus().name(), s.getCreatedAt(), shares);
         }
     }

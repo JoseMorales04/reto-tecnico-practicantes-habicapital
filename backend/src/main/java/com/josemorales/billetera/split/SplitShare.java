@@ -24,6 +24,10 @@ public class SplitShare {
     @Column(nullable = false)
     private long amount;
 
+    /** 1 si esta parte incluye un peso extra por redondeo (por turnos), 0 si no. */
+    @Column(nullable = false)
+    private long roundingExtra;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private ShareStatus status;
@@ -38,10 +42,11 @@ public class SplitShare {
 
     protected SplitShare() {}
 
-    SplitShare(BillSplit split, Long debtorAccountId, long amount) {
+    SplitShare(BillSplit split, Long debtorAccountId, long amount, long roundingExtra) {
         this.split = split;
         this.debtorAccountId = debtorAccountId;
         this.amount = amount;
+        this.roundingExtra = roundingExtra;
         this.status = ShareStatus.PENDING;
     }
 
@@ -68,6 +73,7 @@ public class SplitShare {
     public BillSplit getSplit() { return split; }
     public Long getDebtorAccountId() { return debtorAccountId; }
     public long getAmount() { return amount; }
+    public long getRoundingExtra() { return roundingExtra; }
     public ShareStatus getStatus() { return status; }
     public Long getOperationId() { return operationId; }
     public Instant getResolvedAt() { return resolvedAt; }

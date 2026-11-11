@@ -17,7 +17,7 @@ Requisitos: Java 17 o superior y Node 18 o superior.
 ```bash
 # Backend (http://localhost:8080, documentación en /swagger-ui.html)
 cd backend
-./mvnw test             # 26 pruebas, incluidas las de concurrencia
+./mvnw test             # 27 pruebas, incluidas las de concurrencia
 ./mvnw spring-boot:run  # en PowerShell: .\mvnw "spring-boot:run"
 
 # Frontend (http://localhost:4200)
@@ -187,6 +187,7 @@ Calculo el saldo neto de cada persona con las partes pendientes del grupo y apli
 - **Un libro de movimientos que nunca se modifica:** cada carga o transferencia crea movimientos inmutables. El saldo se guarda en la cuenta para consultarlo rápido, pero siempre debe coincidir con la suma del historial, y la auditoría lo verifica.
 - **Todo cambio de plata pasa por un solo servicio (`LedgerService`):** un solo lugar donde revisar, probar y proteger.
 - **H2 en archivo:** corre sin instalar nada. En producción usaría PostgreSQL; el código no cambia porque todo pasa por JPA.
+- **El peso de más rota por turnos (idea mía):** al dividir 100.000 entre 3 sobra un peso. Al principio lo asumía siempre quien cobraba, pero si el mismo grupo sale cada semana y siempre paga la misma persona, ella termina poniendo más que los demás. Ahora el sistema lleva la cuenta de cuántos pesos de más ha puesto cada uno y le asigna el siguiente a quien menos lleva. Una limitación: si dos divisiones del mismo grupo se crean exactamente al mismo tiempo, el turno podría repetirse. Eso solo afecta la justicia del reparto en un peso, nunca la plata total.
 - **La vaca como funcionalidad extra:** ✍️ *¿por qué esta y no otra? Ejemplo: es el escenario donde más se nota que el banco no entiende el contexto; en un extracto es "transferencia de Beto", aquí es "Beto pagó su parte de la cena de cumpleaños".*
 
 ## 02. Cómo sé que mi sistema no pierde un peso
@@ -201,7 +202,7 @@ Calculo el saldo neto de cada persona con las partes pendientes del grupo y apli
 | Saldo negativo | Validación en el código y restricción `CHECK (balance >= 0)` en la base de datos | Pruebas de saldo insuficiente |
 | Montos inválidos o absurdos | Mayor que cero y tope de $10.000.000 por operación | `montosInvalidosSonRechazados` |
 | Desbordamiento numérico | `Math.addExact` lanza un error en vez de dar un saldo negativo | — |
-| Dividir 100.000 entre 3 pierde o crea pesos | Partes enteras más un chequeo explícito de que la suma es exactamente el total; el peso sobrante lo asume quien cobra | `dividirEnPartesIgualesNoPierdeNiCreaPesos` |
+| Dividir 100.000 entre 3 pierde o crea pesos | Partes enteras más un chequeo explícito de que la suma es exactamente el total. Los pesos que sobran se asignan por turnos | `dividirEnPartesIgualesNoPierdeNiCreaPesos`, `elPesoDeMasRotaEntreLasMismasPersonas` |
 | El plan de liquidación descuadra los saldos | Verifico que los saldos netos sumen cero antes de calcular, y una prueba confirma que al aplicar el plan todos quedan exactamente en cero | `elPlanDejaATodosExactamenteEnCero` |
 | Pagar dos veces la misma parte de la vaca | Bloqueo de la parte; el segundo pago la encuentra pagada | `pagosSimultaneosDeLaMismaParteSoloCobranUnaVez` |
 | Plata que aparece o desaparece por un error que no anticipé | Auditoría: suma de saldos = suma de cargas; saldo de cada cuenta = suma de su historial; cada parte pagada tiene su transferencia real | `GET /api/audit`, revisada al final de casi todas las pruebas |
@@ -212,7 +213,7 @@ La prueba más fuerte es `milTransferenciasSimultaneasConservanLaPlataTotal`: 20
 
 ✍️ *Ajusta y explica:*
 
-- **Autenticación y autorización:** hoy cualquiera puede operar sobre cualquier cuenta. Es lo primero que agregaría, pero el reto se centra en no perder plata y preferí invertir el tiempo ahí.
+- **Autenticación y autorización:** hoy cualquiera puede operar sobre cualquier cuenta. Lo consulté con el equipo de selección de Habi y me confirmaron que no es requisito del reto, así que preferí invertir el tiempo en que el sistema no pierda plata. Es lo primero que agregaría: usuario y contraseña cifrada (BCrypt), un token por sesión y validar en el backend que solo puedas mover plata de tu propia cuenta.
 - **Pasarela de pagos real:** la carga de saldo es simulada, como pide el reto.
 - **Reversos y devoluciones:** se harían como una operación compensatoria nueva, nunca editando el historial.
 - **Ejecutar el plan de liquidación de una vez:** hoy es una sugerencia. Ejecutarlo requiere pagar varias partes con menos transferencias y ajustar la auditoría, que hoy exige una transferencia por cada parte pagada.
@@ -241,7 +242,7 @@ La prueba más fuerte es `milTransferenciasSimultaneasConservanLaPlataTotal`: 20
 
 - Una sola moneda: pesos colombianos sin decimales.
 - Una cuenta por persona y sin autenticación.
-- En la vaca, quien cobra asume el peso sobrante del redondeo para no cobrarle de más a nadie.
+- En la vaca, los pesos que sobran al dividir en partes iguales los pone por turnos quien menos pesos de más haya puesto antes (contando todas sus divisiones). En un empate va primero quien cobra.
 - El tope de $10.000.000 por operación es arbitrario; en la vida real lo definiría el negocio y la regulación.
 
 ## 07. Cómo usé IA

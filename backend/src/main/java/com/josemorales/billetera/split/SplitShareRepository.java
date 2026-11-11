@@ -18,6 +18,13 @@ public interface SplitShareRepository extends JpaRepository<SplitShare, Long> {
 
     List<SplitShare> findByDebtorAccountIdAndStatusOrderByIdDesc(Long debtorAccountId, ShareStatus status);
 
+    /** Cuántos pesos extra por redondeo ha puesto cada cuenta como deudora: filas [accountId, total]. */
+    @Query("""
+            select s.debtorAccountId, sum(s.roundingExtra) from SplitShare s
+            where s.debtorAccountId in :accountIds group by s.debtorAccountId
+            """)
+    List<Object[]> sumRoundingExtrasAsDebtor(@Param("accountIds") java.util.Collection<Long> accountIds);
+
     /** Partes pendientes donde tanto el deudor como quien cobra pertenecen al grupo. */
     @Query("""
             select s from SplitShare s join fetch s.split sp

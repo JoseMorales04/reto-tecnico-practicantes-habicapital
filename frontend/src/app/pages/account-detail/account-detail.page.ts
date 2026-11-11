@@ -133,11 +133,11 @@ export class AccountDetailPage implements OnInit {
     const base = Math.floor(total / people);
     const rest = total % people;
     const fmt = (n: number) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n);
-    if (v.includeCreator) {
-      return `Cada participante paga ${fmt(base)}; tú pones ${fmt(base + rest)}.`;
+    if (rest === 0) {
+      return `Cada uno paga ${fmt(base)}.`;
     }
-    return rest === 0 ? `Cada participante paga ${fmt(base)}.`
-      : `${rest} participante(s) pagan ${fmt(base + 1)} y el resto ${fmt(base)}, para cuadrar el total exacto.`;
+    return `Cada uno paga ${fmt(base)}. Sobra${rest > 1 ? 'n' : ''} ${rest} peso${rest > 1 ? 's' : ''}: `
+      + `lo${rest > 1 ? 's' : ''} pone por turnos quien menos pesos de más haya puesto antes.`;
   }
 
   movementLabel(m: Movement): string {

@@ -31,6 +31,10 @@ public class BillSplit {
     @Column(nullable = false)
     private long creatorShare;
 
+    /** 1 si el creador asumió un peso extra por redondeo en esta división. */
+    @Column(nullable = false)
+    private long creatorRoundingExtra;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private SplitStatus status;
@@ -44,17 +48,19 @@ public class BillSplit {
 
     protected BillSplit() {}
 
-    public BillSplit(Long creatorAccountId, String description, long totalAmount, long creatorShare) {
+    public BillSplit(Long creatorAccountId, String description, long totalAmount, long creatorShare,
+                     long creatorRoundingExtra) {
         this.creatorAccountId = creatorAccountId;
         this.description = description;
         this.totalAmount = totalAmount;
         this.creatorShare = creatorShare;
+        this.creatorRoundingExtra = creatorRoundingExtra;
         this.status = SplitStatus.OPEN;
         this.createdAt = Instant.now();
     }
 
-    public void addShare(Long debtorAccountId, long amount) {
-        shares.add(new SplitShare(this, debtorAccountId, amount));
+    public void addShare(Long debtorAccountId, long amount, long roundingExtra) {
+        shares.add(new SplitShare(this, debtorAccountId, amount, roundingExtra));
     }
 
     /** Se cierra cuando ya no queda ninguna parte pendiente. */
@@ -76,6 +82,7 @@ public class BillSplit {
     public String getDescription() { return description; }
     public long getTotalAmount() { return totalAmount; }
     public long getCreatorShare() { return creatorShare; }
+    public long getCreatorRoundingExtra() { return creatorRoundingExtra; }
     public SplitStatus getStatus() { return status; }
     public List<SplitShare> getShares() { return shares; }
     public Instant getCreatedAt() { return createdAt; }
