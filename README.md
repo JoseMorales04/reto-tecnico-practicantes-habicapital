@@ -232,10 +232,10 @@ La prueba más fuerte es `milTransferenciasSimultaneasConservanLaPlataTotal`: 20
 
 ## 06. Supuestos
 
-- Una sola moneda: pesos colombianos sin decimales.
-- Una cuenta por persona y sin autenticación.
-- En la vaca, los pesos que sobran al dividir en partes iguales los pone por turnos quien menos pesos de más haya puesto antes (contando todas sus divisiones). En un empate va primero quien cobra.
-- El tope de $10.000.000 por operación es arbitrario; en la vida real lo definiría el negocio y la regulación.
+- **Una sola moneda, pesos colombianos sin decimales:** porque el escenario es mover plata entre personas en Colombia, y eso no genera fracciones de peso.
+- **Una cuenta por persona y sin autenticación:** porque el reto se centra en que la plata no se pierda, y Habi confirmó que el login no es requisito.
+- **El peso que sobra al dividir rota por turnos:** lo pone quien menos pesos de más haya puesto antes, contando todas sus divisiones, y en un empate va primero quien cobra. Así nadie termina pagando siempre de más.
+- **Tope de $10.000.000 por operación:** limita el daño de un error o de un abuso. El valor es arbitrario; en la vida real lo definirían el negocio y la regulación.
 
 ## 07. Cómo usé IA
 
@@ -259,7 +259,8 @@ No dejé que la IA lo hiciera todo. No puedo mandarla a construir algo sin saber
 
 ## 08. Qué aprendí
 
-- **Qué es la idempotencia y por qué importa con plata:** un doble clic o un reintento por falla de red no puede cobrar dos veces.
-- **Por qué el orden de los bloqueos evita deadlocks:** si todas las transferencias bloquean las cuentas en el mismo orden, no se puede formar un ciclo de espera.
-- **Cómo se prueba la concurrencia:** lanzando muchas operaciones en paralelo y verificando al final que la plata total no cambió.
-- **A trabajar en un proyecto difícil con tiempo limitado,** a salirme de mi zona de confort y a usar las herramientas que tengo para hacer mejor mi trabajo.
+**Qué es nuevo para mí.** Cosas que vivía a diario pero nunca había visto como un problema. Dividir una cuenta entre 3 casi nunca da exacto: siempre sobra un peso y alguien tiene que ponerlo. Un doble clic o un reintento por falla de red puede cobrarte dos veces si el sistema no lo evita, y para eso existe la idempotencia. También aprendí por qué bloquear las cuentas siempre en el mismo orden evita que dos transferencias se queden esperándose para siempre.
+
+**Qué me sorprendió.** Que la IA se equivocara en algo tan básico como un tipo de dato (`int` en vez de `Long`). Me confirmó que no puedo entregar nada sin compilarlo y probarlo yo mismo.
+
+**Qué me llevo.** Que para probar que un sistema no pierde plata no basta con probar los casos uno por uno: hay que atacarlo con muchas operaciones al mismo tiempo y verificar que al final la plata total sea la misma. También me llevo haber trabajado en un proyecto difícil con tiempo limitado, saliendo de mi zona de confort y usando las herramientas que tengo para hacer mejor mi trabajo.
