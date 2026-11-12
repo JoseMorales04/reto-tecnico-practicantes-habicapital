@@ -1,7 +1,5 @@
 # Vaca · Billetera entre personas
 
-> **BORRADOR. José: reescribe todo con tus palabras antes de entregar.** Las partes marcadas con ✍️ solo las puedes escribir tú. Borra estas notas al final.
-
 Un sistema para que un grupo de personas se mueva plata sin pasar por el banco, con una regla que no se negocia: **no puede perder un peso**.
 
 Además del núcleo (crear cuenta, cargar saldo, transferir, consultar saldo e historial), construí **la vaca**: quien pagó la cena divide la cuenta, y a cada participante le aparece cuánto debe, a quién y por qué. Paga con un clic y la cuenta se cierra sola cuando nadie debe nada. Y si en un grupo hay varias vacas cruzadas, **"¿Quién le paga a quién?"** calcula un plan con pocas transferencias para quedar a paz y salvo.
@@ -180,15 +178,13 @@ Calculo el saldo neto de cada persona con las partes pendientes del grupo y apli
 
 ## 01. Decisiones clave y por qué las tomé
 
-✍️ *Revisa cada decisión y explica el porqué con tus palabras. Estas son las que tomamos:*
-
-- **Spring Boot + Angular:** es el stack que mejor domino. Para un sistema que mueve plata preferí la tecnología donde entiendo cada línea, en vez de aprender un framework nuevo en 72 horas.
-- **Montos en pesos enteros (`long`), nunca `double`:** con decimales binarios 0,1 + 0,2 no da 0,3. El peso colombiano no usa centavos en la práctica, así que un entero de pesos es exacto.
+- **Spring Boot + Angular:** es el stack que mejor domino. Lo he usado de forma constante durante este semestre en Ingeniería de Software Moderna, con retroalimentación y revisiones de código, y lo tengo muy reciente. Para un sistema que mueve plata preferí la tecnología donde entiendo cada línea, en vez de aprender un framework nuevo en 72 horas.
+- **Montos en pesos enteros (`long`), nunca `double`:** con decimales binarios, 0,1 + 0,2 no da 0,3, y con plata eso no es aceptable. Los bancos guardan centavos porque calculan intereses, el 4×1000 y comisiones; este sistema solo mueve plata entre personas, y eso nunca genera fracciones de peso. Lo consulté con el equipo de selección de Habi y me confirmaron que pesos enteros está bien. Si después hubiera comisiones porcentuales, cambiaría la unidad a centavos, que sigue siendo un entero: solo cambia la escala.
 - **Un libro de movimientos que nunca se modifica:** cada carga o transferencia crea movimientos inmutables. El saldo se guarda en la cuenta para consultarlo rápido, pero siempre debe coincidir con la suma del historial, y la auditoría lo verifica.
 - **Todo cambio de plata pasa por un solo servicio (`LedgerService`):** un solo lugar donde revisar, probar y proteger.
-- **H2 en archivo:** corre sin instalar nada. En producción usaría PostgreSQL; el código no cambia porque todo pasa por JPA.
-- **El peso de más rota por turnos (idea mía):** al dividir 100.000 entre 3 sobra un peso. Al principio lo asumía siempre quien cobraba, pero si el mismo grupo sale cada semana y siempre paga la misma persona, ella termina poniendo más que los demás. Ahora el sistema lleva la cuenta de cuántos pesos de más ha puesto cada uno y le asigna el siguiente a quien menos lleva. Una limitación: si dos divisiones del mismo grupo se crean exactamente al mismo tiempo, el turno podría repetirse. Eso solo afecta la justicia del reparto en un peso, nunca la plata total.
-- **La vaca como funcionalidad extra:** ✍️ *¿por qué esta y no otra? Ejemplo: es el escenario donde más se nota que el banco no entiende el contexto; en un extracto es "transferencia de Beto", aquí es "Beto pagó su parte de la cena de cumpleaños".*
+- **H2 en archivo y todo local:** corre sin instalar nada. En producción usaría PostgreSQL; el código no cambia porque todo pasa por JPA. No lo desplegué en internet porque el reto no lo pide y preferí invertir el tiempo en que no pierda plata.
+- **La vaca como funcionalidad extra:** la escogí por dos razones. La primera es el contexto: en un extracto bancario solo dice "transferencia de Beto", y cuando toca hacer la declaración de renta uno no sabe qué fue cada movimiento. Aquí queda claro que "Beto pagó su parte de la cena de cumpleaños". La segunda es que lo vivo en carne propia: todos los meses divido con mis roomies el arriendo, el mercado y los servicios, y es tedioso. Por eso puedo ser crítico con lo que construí.
+- **El peso de más rota por turnos (idea mía):** al dividir 100.000 entre 3 sobra un peso. Al principio lo asumía siempre quien cobraba, pero si el mismo grupo divide cada semana, esa persona termina poniendo más que los demás. Ahora el sistema lleva la cuenta de cuántos pesos de más ha puesto cada uno y le asigna el siguiente a quien menos lleva. Una limitación: si dos divisiones del mismo grupo se crean exactamente al mismo tiempo, el turno podría repetirse. Eso solo afecta en un peso a quién le toca, nunca la plata total.
 
 ## 02. Cómo sé que mi sistema no pierde un peso
 
@@ -211,9 +207,7 @@ La prueba más fuerte es `milTransferenciasSimultaneasConservanLaPlataTotal`: 20
 
 ## 03. Qué dejé fuera y por qué
 
-✍️ *Ajusta y explica:*
-
-- **Autenticación y autorización:** hoy cualquiera puede operar sobre cualquier cuenta. Lo consulté con el equipo de selección de Habi y me confirmaron que no es requisito del reto, así que preferí invertir el tiempo en que el sistema no pierda plata. Es lo primero que agregaría: usuario y contraseña cifrada (BCrypt), un token por sesión y validar en el backend que solo puedas mover plata de tu propia cuenta.
+- **Autenticación y autorización:** hoy cualquiera puede operar sobre cualquier cuenta. Lo consulté con el equipo de selección de Habi y me confirmaron que no es requisito del reto, así que preferí invertir el tiempo en que el sistema no pierda plata. Es lo primero que agregaría: usuario y contraseña cifrada (BCrypt), un token por sesión y validar en el backend que solo puedas mover plata de tu propia cuenta, como hice con el login en proyectos de la universidad.
 - **Pasarela de pagos real:** la carga de saldo es simulada, como pide el reto.
 - **Reversos y devoluciones:** se harían como una operación compensatoria nueva, nunca editando el historial.
 - **Ejecutar el plan de liquidación de una vez:** hoy es una sugerencia. Ejecutarlo requiere pagar varias partes con menos transferencias y ajustar la auditoría, que hoy exige una transferencia por cada parte pagada.
@@ -221,24 +215,22 @@ La prueba más fuerte es `milTransferenciasSimultaneasConservanLaPlataTotal`: 20
 
 ## 04. Qué haría distinto con más tiempo
 
-✍️ *Ejemplos para inspirarte:*
-
-- PostgreSQL con Testcontainers, para probar la concurrencia contra la base de datos de producción y no solo contra H2.
-- Migraciones con Flyway en vez de `ddl-auto=update`.
-- Límites diarios por cuenta y detección de comportamiento raro.
-- Llave de idempotencia con vencimiento y asociada a la cuenta que la usa.
+- **Desplegarlo en internet:** hoy corre solo en local. Lo subiría con PostgreSQL administrado, el backend en un contenedor y el frontend en un hosting estático, con las URLs configuradas por variables de entorno.
+- **Una app móvil:** para dividir cuentas con los roomies, el celular es más cotidiano que una página web. En primer semestre hice apps móviles con FlutterFlow y Firebase (EcoScan y UpWay, esta última presentada en ExpoAndes), y podría construir una que consuma esta misma API.
+- **Un dashboard de finanzas:** ya hice uno personal en Google Sheets con Apps Script para registrar mis gastos e ingresos. Aquí serviría para ver en qué se va la plata de cada grupo: arriendo, mercado, servicios, salidas.
+- **Centavos:** pasar la unidad a centavos para soportar comisiones, intereses o el 4×1000, sin dejar de usar enteros.
+- **PostgreSQL con Testcontainers**, para probar la concurrencia contra la base de datos de producción y no solo contra H2.
+- **Migraciones con Flyway** en vez de `ddl-auto=update`.
+- **Límites diarios por cuenta** y detección de comportamiento raro.
+- **Llave de idempotencia con vencimiento** y asociada a la cuenta que la usa.
 
 ## 05. Qué NO sé
 
-✍️ *Solo tú puedes escribir esto. Sé honesto, lo piden en serio. Preguntas para pensarlo:*
-
-- ¿Sabrías cómo se comporta el bloqueo pesimista en PostgreSQL frente a H2, por ejemplo en los niveles de aislamiento?
-- ¿Sabes cómo escalaría esto a varias instancias del backend o con millones de cuentas?
-- ¿Qué regulación aplica en Colombia a mover plata entre personas?
+- **Cómo se comporta el bloqueo en una base de datos de producción.** Sé qué hace el bloqueo pesimista en mi código y lo comprobé con las pruebas de concurrencia en H2. Lo que no sé es cómo se comporta en PostgreSQL ni cómo interactúa con los niveles de aislamiento; no sabría explicar las diferencias.
+- **Cómo escalar esto.** No sé cómo funcionaría con varias instancias del backend al mismo tiempo ni con millones de cuentas.
+- **La regulación.** No sé qué normas aplican en Colombia para mover plata entre personas.
 
 ## 06. Supuestos
-
-✍️ *Revisa y ajusta:*
 
 - Una sola moneda: pesos colombianos sin decimales.
 - Una cuenta por persona y sin autenticación.
@@ -247,14 +239,27 @@ La prueba más fuerte es `milTransferenciasSimultaneasConservanLaPlataTotal`: 20
 
 ## 07. Cómo usé IA
 
-✍️ **Esta sección tiene que ser tuya.** Cuenta tu dinámica real. Lo que pasó en este proyecto, para que lo cuentes a tu manera:
+Usé Claude como un motor para desarrollar más rápido. La base técnica ya la conocía porque la he trabajado yo mismo: Spring Boot, JPA y Angular en Ingeniería de Software Moderna, SQL en Fundamentos de Bases de Datos y colas de prioridad en Estructuras de Datos. Sin IA habría podido construir una parte, pero me habría tomado mucho más tiempo y seguramente no habría alcanzado a hacer todo lo que hice.
 
-- Usé Claude como compañero. Yo decidí el stack, la funcionalidad extra y cómo trabajar (por etapas, revisando cada una). Claude escribía cada etapa y me la explicaba; yo corría las pruebas en mi computador, leía el código y preguntaba lo que no entendía.
-- Claude no podía compilar Java en su entorno, así que la verificación real fue mía: corrí `mvn test` y le devolví los resultados.
-- **Un error de la IA:** en el frontend, el formulario de crear cuenta usaba `(ngSubmit)` sin `[formGroup]`. Con formularios reactivos, ese evento no se dispara sin la directiva, así que el botón no creaba nada. Se detectó al probar la pantalla con un navegador automatizado: las cuentas nunca aparecían.
-- **Otro error, que detectó el compilador en mi computador:** en las pruebas de la vaca, la IA pasó números como `90_000` donde el constructor espera un `Long`. Java no convierte `int` a `Long` automáticamente, así que no compiló. Lo corregimos agregando `L` (`90_000L`).
-- ✍️ *Agrega tus propios momentos: algo que preguntaste, algo que decidiste distinto a lo que sugirió la IA, algo que comprobaste tú.*
+No dejé que la IA lo hiciera todo. No puedo mandarla a construir algo sin saber como mínimo qué está haciendo, así que le daba instrucciones claras, concretas y aterrizadas al reto y a mi nivel.
+
+**Lo que decidí yo:** el stack, la funcionalidad extra, cómo implementarla y por qué, y trabajar por etapas (núcleo, vaca, frontend y mejoras) revisando cada una antes de seguir. También fueron mías la idea de que el peso de más rote por turnos, consultar con Habi si esperaban login y centavos, y dejarlo local en vez de desplegarlo.
+
+**Cómo revisaba:** Claude escribía según mis instrucciones y decisiones. Yo compilaba y corría las pruebas en mi computador, leía el código hasta entender qué hacía y, a partir de los resultados, le daba retroalimentación y nuevas decisiones. Lo que no entendía lo preguntaba o lo buscaba hasta entender qué hacía y cómo.
+
+**Las protecciones del dinero fueron nuevas para mí.** Idempotencia, bloqueos en orden y pruebas de concurrencia: las aprendí en este proyecto, revisando con la IA por qué cada una era necesaria (ver la sección 08).
+
+**Errores de la IA:**
+
+- **El formulario que no enviaba nada:** en el frontend, el formulario de crear cuenta usaba `(ngSubmit)` sin `[formGroup]`. Con formularios reactivos ese evento no se dispara sin la directiva, así que el botón no creaba nada. Se detectó al probar la pantalla con un navegador automatizado: las cuentas nunca aparecían.
+- **Tipos que no compilaban:** en las pruebas de la vaca, la IA pasó números como `90_000` donde el constructor espera un `Long`. Java no convierte `int` a `Long` automáticamente, así que no compiló en mi computador. Lo corregimos agregando `L` (`90_000L`); ese arreglo es un commit propio en el historial.
+- **Un falso error de pruebas:** después de esa falla, Maven creyó que el código estaba compilado y no encontró las clases al correr las pruebas. Revisando el reporte vimos que no era un error del código sino de la carpeta `target`, y se resolvió con `mvn clean test`.
+
+**Sobre el historial de commits:** construí el proyecto por etapas entre el 9 y el 10 de noviembre, probando cada una en mi computador. Creé el repositorio después, así que los primeros commits reconstruyen esas etapas en orden. Los cambios posteriores, como el peso rotativo y este README, los fui subiendo a medida que los hacía.
 
 ## 08. Qué aprendí
 
-✍️ *Solo tú. Por ejemplo: qué es la idempotencia y por qué importa con plata; por qué el orden de los bloqueos evita deadlocks; cómo se prueba la concurrencia.*
+- **Qué es la idempotencia y por qué importa con plata:** un doble clic o un reintento por falla de red no puede cobrar dos veces.
+- **Por qué el orden de los bloqueos evita deadlocks:** si todas las transferencias bloquean las cuentas en el mismo orden, no se puede formar un ciclo de espera.
+- **Cómo se prueba la concurrencia:** lanzando muchas operaciones en paralelo y verificando al final que la plata total no cambió.
+- **A trabajar en un proyecto difícil con tiempo limitado,** a salirme de mi zona de confort y a usar las herramientas que tengo para hacer mejor mi trabajo.
